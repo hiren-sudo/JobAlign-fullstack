@@ -1,0 +1,23 @@
+
+
+
+<!-- jobalign/resume_parser/templates/resume_parser/resume_parsed.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Parsed Resume</title>
+</head>
+<body>
+    {% if messages %}
+    <ul class="messages">
+        {% for message in messages %}
+        <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    <h2>Parsed Resume Data</h2>
+    <p><strong>Skills:</strong> {{ parsed_data.skills|default:"N/A" }}</p>
+    <p><strong>Education:</strong> {{ parsed_data.education|default:"N/A" }}</p>
+    <a href="{% url 'upload_resume' %}">Upload Another Resume</a>
+</body>
+</html>

@@ -1,0 +1,47 @@
+{% comment %} <!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Upload Resume</title>
+  </head>
+  <body>
+    <h1>Upload Resume</h1>
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      <label for="resume">Upload your resume (PDF or DOCX):</label>
+      <input
+        type="file"
+        id="resume"
+        name="resume"
+        accept=".pdf, .docx"
+        required
+      />
+      <button type="submit">Upload</button>
+    </form>
+  </body>
+</html> {% endcomment %}
+
+
+
+<!-- jobalign/resume_parser/templates/resume_parser/upload_resume.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Upload Resume</title>
+</head>
+<body>
+    {% if messages %}
+    <ul class="messages">
+        {% for message in messages %}
+        <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    <h2>Upload Your Resume</h2>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="file" name="resume" accept=".pdf,.docx" required>
+        <button type="submit">Upload Resume</button>
+    </form>
+</body>
+</html>

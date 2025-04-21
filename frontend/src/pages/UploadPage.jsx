@@ -1,6 +1,6 @@
 // pages/UploadPage.jsx
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import ProcessSteps from '../components/ProcessSteps';
 
@@ -9,6 +9,7 @@ const UploadPage = () => {
   const [file, setFile] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const navigate = useNavigate();
   
   const handleDrag = (e) => {
     e.preventDefault();
@@ -40,18 +41,44 @@ const UploadPage = () => {
     setFile(file);
   };
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!file) return;
     
     setUploading(true);
     
-    // Simulate upload process
-    setTimeout(() => {
+    try {
+      const formData = new FormData();
+      formData.append('resume', file);
+
+      const response = await fetch('http://localhost:8000/resume_parser/api/upload-resume/', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON response:', text);
+        throw new Error('Server returned an invalid response. Please try again.');
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
+      const data = await response.json();
       setUploading(false);
-      // Redirect would happen here in a real application
-      window.alert('Resume uploaded successfully! You would be redirected to your dashboard.');
-    }, 2000);
+      
+      // Navigate to ResultsPage with the parsed data
+      navigate('/results', { state: { parsedData: data.data } });
+    } catch (error) {
+      setUploading(false);
+      console.error('Upload error details:', error);
+      window.alert(`Error uploading resume: ${error.message}`);
+    }
   };
   
   return (

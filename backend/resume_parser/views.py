@@ -132,6 +132,9 @@ from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 import logging
 import tempfile
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -370,6 +373,107 @@ def extract_education(text: str) -> str:
     logger.debug(f"Matched Degrees: {matched_degrees}")
     return ', '.join(sorted(matched_degrees)) if matched_degrees else "N/A"
 
+# def extract_name(text: str) -> str:
+#     """Extract name from text by focusing on the beginning of the resume."""
+#     try:
+#         # Get the first few lines of the resume (where name is most likely to be)
+#         lines = text.split('\n')[:10]  # Look at first 10 lines
+        
+#         for line in lines:
+#             line = line.strip()
+            
+#             # Skip empty lines or lines that are too short
+#             if not line or len(line) < 3:
+#                 continue
+                
+#             # Skip lines that look like email, phone, or section headers
+#             if ('@' in line or 
+#                 any(c.isdigit() for c in line) or 
+#                 line.isupper() or 
+#                 line.lower().startswith(('summary', 'objective', 'experience', 'education', 'skills'))):
+#                 continue
+                
+#             # Check for name patterns
+#             words = line.split()
+            
+#             # Pattern 1: Two or three capitalized words
+#             if 2 <= len(words) <= 3 and all(word[0].isupper() for word in words if word):
+#                 return line
+                
+#             # Pattern 2: Single word that's not too short and capitalized
+#             if len(words) == 1 and len(line) > 2 and line[0].isupper():
+#                 # Check if it's followed by another capitalized word in next line
+#                 next_line = lines[lines.index(line) + 1].strip() if lines.index(line) + 1 < len(lines) else ""
+#                 if next_line and next_line[0].isupper():
+#                     return f"{line} {next_line}"
+                    
+#             # Pattern 3: Look for common name prefixes/suffixes
+#             name_indicators = ['Mr.', 'Ms.', 'Mrs.', 'Dr.', 'Prof.']
+#             if any(indicator in line for indicator in name_indicators):
+#                 # Get the next word after the indicator
+#                 parts = line.split()
+#                 for i, part in enumerate(parts):
+#                     if part in name_indicators and i + 1 < len(parts):
+#                         return ' '.join(parts[i:])
+                        
+#     except Exception as e:
+#         logger.error(f"Error extracting name: {e}")
+#     return "N/A"
+
+def extract_email(text: str) -> str:
+    """Extract email from text using common patterns."""
+    try:
+        # Common email patterns
+        patterns = [
+            r'[\w\.-]+@[\w\.-]+\.\w+',  # Standard email pattern
+            r'Email[:\s]*([\w\.-]+@[\w\.-]+\.\w+)',  # After "Email:" or similar
+            r'[\w\.-]+@[\w\.-]+\.(?:com|org|net|edu|gov)',  # Common TLDs
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                email = match.group(1) if match.groups() else match.group(0)
+                return email.lower().strip()
+    except Exception as e:
+        logger.error(f"Error extracting email: {e}")
+    return "N/A"
+
+def extract_phone(text: str) -> str:
+    """Extract phone number from text, handling various formats including country codes."""
+    try:
+        # Find all sequences of digits
+        numbers = re.findall(r'\+?\d+', text)
+        
+        for number in numbers:
+            # Remove any non-digit characters except '+'
+            cleaned = re.sub(r'[^\d+]', '', number)
+            
+            # Check for 10 digits (standard phone number)
+            if len(cleaned) == 10:
+                return cleaned
+            
+            # Check for 12 digits (with country code)
+            if len(cleaned) == 12:
+                return cleaned
+            
+            # Check for 11 digits (with country code and +)
+            if len(cleaned) == 11 and cleaned.startswith('+'):
+                return cleaned
+            
+            # Check for 13 digits (with country code and +)
+            if len(cleaned) == 13 and cleaned.startswith('+'):
+                return cleaned
+            
+            # If the number is longer, try to extract the last 10 digits
+            if len(cleaned) > 10:
+                # Remove country code and keep last 10 digits
+                return cleaned[-10:]
+                
+    except Exception as e:
+        logger.error(f"Error extracting phone: {e}")
+    return "N/A"
+
 # Main parsing logic
 def upload_resume(request):
     """Handle resume upload, parsing, and storage."""
@@ -407,6 +511,9 @@ def upload_resume(request):
         logger.debug(f"Cleaned Text: {cleaned_text}")
 
         parsed_data = {
+            'name': extract_name(cleaned_text),
+            'email': extract_email(cleaned_text),
+            'phone': extract_phone(cleaned_text),
             'skills': extract_skills(cleaned_text) or "N/A",
             'education': extract_education(cleaned_text) or "N/A",
         }
@@ -442,3 +549,79 @@ def upload_resume(request):
         logger.error(f"Unexpected error in upload_resume: {e}")
         messages.error(request, "An unexpected error occurred. Please try again later.")
         return redirect('upload_resume')
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_upload_resume(request):
+    """API endpoint for resume upload and parsing."""
+    try:
+        logger.debug("Received file upload request")
+        
+        # Validate file
+        uploaded_file = request.FILES.get('resume')
+        if not uploaded_file:
+            logger.error("No file received in request")
+            return JsonResponse({
+                'error': 'No file uploaded'
+            }, status=400)
+
+        logger.debug(f"Received file: {uploaded_file.name} ({uploaded_file.size} bytes)")
+        
+        validate_file(uploaded_file)
+
+        file_type = uploaded_file.name.split('.')[-1].lower()
+        file_text = ""
+
+        # Extract text based on file type
+        if file_type == 'pdf':
+            logger.debug("Processing PDF file")
+            file_text = extract_text_from_pdf(uploaded_file)
+            if not file_text.strip():
+                logger.debug("PDF text extraction failed, trying OCR")
+                uploaded_file.seek(0)  # Reset file pointer
+                file_text = extract_text_with_ocr(uploaded_file)
+        elif file_type == 'docx':
+            logger.debug("Processing DOCX file")
+            file_text = extract_text_from_docx(uploaded_file)
+
+        if not file_text.strip():
+            logger.error("Failed to extract text from file")
+            return JsonResponse({
+                'error': 'Unable to extract text from the file. Please try a different file.'
+            }, status=400)
+
+        # Preprocess and parse the text
+        cleaned_text = preprocess_text(file_text)
+        logger.debug(f"Cleaned Text length: {len(cleaned_text)}")
+
+        parsed_data = {
+            'name': extract_name(cleaned_text),
+            'email': extract_email(cleaned_text),
+            'phone': extract_phone(cleaned_text),
+            'skills': extract_skills(cleaned_text) or "N/A",
+            'education': extract_education(cleaned_text) or "N/A",
+        }
+
+        logger.debug(f"Parsed Data: {parsed_data}")
+
+        # Save to database
+        resume_instance = Resume(**parsed_data)
+        resume_instance.full_clean()
+        resume_instance.save()
+
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Resume parsed successfully',
+            'data': parsed_data
+        })
+
+    except ValidationError as ve:
+        logger.error(f"Validation error: {str(ve)}")
+        return JsonResponse({
+            'error': str(ve)
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Unexpected error in api_upload_resume: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'error': 'An unexpected error occurred. Please try again later.'
+        }, status=500)

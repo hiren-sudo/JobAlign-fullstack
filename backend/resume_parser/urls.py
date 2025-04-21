@@ -20,4 +20,5 @@ from . import views
 
 urlpatterns = [
     path('upload/', views.upload_resume, name='upload_resume'),
+    path('api/upload-resume/', views.api_upload_resume, name='api_upload_resume'),
 ]

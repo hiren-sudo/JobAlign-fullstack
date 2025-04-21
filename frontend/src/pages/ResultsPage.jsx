@@ -1,68 +1,75 @@
 // ResultsPage.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import ResumePreview from '../components/ResumePreview';
 import JobCard from '../components/JobCard';
 import AIMatchingVisual from '../components/AIMatchingVisual';
 
 const ResultsPage = () => {
-  // Mock data - in a real app, this would come from API or context
+  const location = useLocation();
+  const parsedData = location.state?.parsedData;
+
   const [resumeData, setResumeData] = useState({
-    name: "Alex Johnson",
-    email: "alex.johnson@example.com",
-    phone: "(555) 123-4567",
-    skills: ["React", "JavaScript", "Node.js", "UI/UX Design", "TypeScript", "RESTful APIs"],
-    education: [
-      {
-        degree: "Bachelor of Science in Computer Science",
-        institution: "University of Technology",
-        year: "2018-2022"
-      }
-    ],
-    experience: [
-      {
-        title: "Frontend Developer",
-        company: "Tech Solutions Inc.",
-        duration: "2022-Present",
-        description: "Developed responsive web applications using React and TypeScript."
-      },
-      {
-        title: "Web Development Intern",
-        company: "Digital Innovations",
-        duration: "2021-2022",
-        description: "Assisted in building and maintaining client websites."
-      }
-    ]
+    // name: '',
+    email: '',
+    phone: '',
+    skills: [],
+    education: [],
+    experience: []
   });
 
-  const [jobMatches, setJobMatches] = useState([
-    {
-      id: 1,
-      title: "Senior Frontend Developer",
-      company: "Innovative Tech",
-      location: "San Francisco, CA (Remote)",
-      matchPercentage: 92,
-      description: "Looking for a skilled developer with React and TypeScript experience to join our growing team.",
-      salary: "$120,000 - $150,000"
-    },
-    {
-      id: 2,
-      title: "UI/UX Developer",
-      company: "Design Solutions",
-      location: "New York, NY",
-      matchPercentage: 87,
-      description: "Join our team to create beautiful user interfaces with modern JavaScript frameworks.",
-      salary: "$110,000 - $130,000"
-    },
-    {
-      id: 3,
-      title: "Full Stack Developer",
-      company: "WebSphere Inc.",
-      location: "Austin, TX (Hybrid)",
-      matchPercentage: 78,
-      description: "Looking for developers with experience in both frontend and backend technologies.",
-      salary: "$100,000 - $125,000"
+  const [jobMatches, setJobMatches] = useState([]);
+
+  useEffect(() => {
+    if (parsedData) {
+      setResumeData({
+        // name: parsedData.name,
+        email: parsedData.email,
+        phone: parsedData.phone,
+        skills: parsedData.skills.split(',').map(skill => skill.trim()),
+        education: parsedData.education.split(',').map(degree => ({
+          degree: degree.trim(),
+          institution: "Not specified",
+          year: "Not specified"
+        })),
+        experience: [] // Experience not extracted in current parser
+      });
+
+      // Mock job matches based on skills (in a real app, this would come from an API)
+      const mockJobMatches = [
+        {
+          id: 1,
+          title: "Software Developer",
+          company: "Tech Solutions Inc.",
+          location: "Remote",
+          matchPercentage: 85,
+          description: "Looking for developers with experience in various technologies.",
+          salary: "$90,000 - $120,000"
+        },
+        {
+          id: 2,
+          title: "Full Stack Engineer",
+          company: "Innovative Tech",
+          location: "San Francisco, CA",
+          matchPercentage: 78,
+          description: "Join our team to work on cutting-edge technologies.",
+          salary: "$100,000 - $140,000"
+        }
+      ];
+      setJobMatches(mockJobMatches);
     }
-  ]);
+  }, [parsedData]);
+
+  if (!parsedData) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-red-600 mb-4">No Resume Data Found</h1>
+          <p className="text-gray-600">Please upload a resume first.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -70,7 +77,23 @@ const ResultsPage = () => {
       
       <div className="mb-12">
         <h2 className="text-2xl font-semibold mb-4 text-blue-700">Your Resume</h2>
-        <ResumePreview resumeData={resumeData} />
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            {/* <div>
+              <h3 className="text-lg font-medium text-gray-700">Name</h3>
+              <p className="text-gray-600">{resumeData.name}</p>
+            </div> */}
+            <div>
+              <h3 className="text-lg font-medium text-gray-700">Email</h3>
+              <p className="text-gray-600">{resumeData.email}</p>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-700">Phone</h3>
+              <p className="text-gray-600">{resumeData.phone}</p>
+            </div>
+          </div>
+          <ResumePreview resumeData={resumeData} />
+        </div>
       </div>
 
       <div className="mb-12">
@@ -81,7 +104,7 @@ const ResultsPage = () => {
       <div>
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-semibold text-blue-700">Job Matches</h2>
-          <div className="text-sm text-gray-600">Based on your skills and experience</div>
+          <div className="text-sm text-gray-600">Based on your skills and education</div>
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
